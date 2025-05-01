@@ -11,7 +11,8 @@ setup(
     license="MIT",
     python_requires=">=3.11",
     install_requires=["mkdocs>=1.1", "jinja2", "mistune", "md2cf", "requests"],
-    packages=find_packages(),
+    package_dir={"": "src"},
+    packages=find_packages(where="src"),
     entry_points={
         "mkdocs.plugins": [
             "mkdocs-export-confluence = src.plugin:MkdocsExportConfluence"
