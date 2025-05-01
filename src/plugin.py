@@ -12,13 +12,9 @@ from md2cf.confluence_renderer import ConfluenceRenderer, ConfluenceTag
 import mistune
 import mimetypes
 
-import mkdocs.plugins
 import mkdocs.structure
 import mkdocs.structure.nav
 import mkdocs.structure.pages
-import mkdocs.theme
-import mkdocs.themes
-import mkdocs.themes.mkdocs
 import requests
 import os
 import hashlib
