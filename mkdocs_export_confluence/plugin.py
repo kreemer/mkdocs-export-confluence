@@ -55,8 +55,6 @@ class MkdocsExportConfluence(BasePlugin[MkdocsExportConfluenceConfig]):
 
         self.__process_config(config)
 
-        self.logger.info(f"Start with config {self.config}")
-
         self.session.headers.update(
             {"Content-Type": "application/json", "Accept": "application/json"}
         )
