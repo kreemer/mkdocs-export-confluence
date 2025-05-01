@@ -15,7 +15,7 @@ setup(
     packages=find_packages(where="src"),
     entry_points={
         "mkdocs.plugins": [
-            "mkdocs-export-confluence = src.plugin:MkdocsExportConfluence"
+            "mkdocs-export-confluence = mkdocs_export_confluence:MkdocsExportConfluence"
         ]
     },
 )
