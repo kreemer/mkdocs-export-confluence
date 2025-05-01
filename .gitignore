@@ -1,0 +1,6 @@
+build
+mkdocs_export_confluence.egg-info
+__pycache__
+examples/**/mkdocs.yml
+examples/**/site
+.env
