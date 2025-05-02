@@ -189,6 +189,21 @@ class MkdocsExportConfluence(BasePlugin[MkdocsExportConfluenceConfig]):
         self.config["space_id"] = space_id
 
         self.logger.info(f"Confluence space ID: {space_id}")
+
+        self.config["parent_page_id"] = None
+        if self.config["parent_page"] is not None:
+            self.logger.info(f"Confluence parent page: {self.config['parent_page']}")
+            parent_page = self.__find_confluence_page_id_by_title(
+                self.config["parent_page"]
+            )
+            if parent_page is None:
+                raise PluginError(
+                    f"Parent page \"{self.config['parent_page']}\" not found in Confluence"
+                )
+
+            parent_page_id = parent_page["id"]
+            self.config["parent_page_id"] = parent_page_id
+
         self.__process_confluence_names()
         self.__process_confluence_page_id()
         self.__process_relative_links()
@@ -305,10 +320,13 @@ class MkdocsExportConfluence(BasePlugin[MkdocsExportConfluenceConfig]):
         page_name = item.confluence_name.replace(" ", "+")
         self.logger.debug(f"Finding page ID for {page_name}")
 
+        return self.__find_confluence_page_id_by_title(page_name)
+
+    def __find_confluence_page_id_by_title(self, title):
         url = (
             self.config["host"]
             + "api/v2/pages?title="
-            + page_name
+            + title
             + "&space-id="
             + self.config["space_id"]
             + ""
@@ -334,11 +352,15 @@ class MkdocsExportConfluence(BasePlugin[MkdocsExportConfluenceConfig]):
     def __create_confluence_page(self, item):
         url = self.config["host"] + "api/v2/pages"
 
+        parent_id = item.parent.confluence_id if item.parent else None
+        if parent_id is None:
+            parent_id = self.config["parent_page_id"]
+
         data = {
             "spaceId": self.config["space_id"],
             "status": "current",
             "title": item.confluence_name,
-            "parentId": item.parent.confluence_id if item.parent else None,
+            "parentId": parent_id,
             "body": {
                 "storage": {"value": item.confluence_body, "representation": "storage"}
             },
@@ -353,15 +375,14 @@ class MkdocsExportConfluence(BasePlugin[MkdocsExportConfluenceConfig]):
     def __update_confluence_page(self, item):
         url = self.config["host"] + "api/v2/pages/" + item.confluence_id
 
-        self.logger.debug(
-            f"Updating page {item.confluence_name} with ID {item.confluence_id}"
-        )
-        self.logger.debug(f"Body: {item.confluence_body}")
+        parent_id = item.parent.confluence_id if item.parent else None
+        if parent_id is None:
+            parent_id = self.config["parent_page_id"]
 
         data = {
             "id": item.confluence_id,
             "status": "current",
-            "parentId": item.parent.confluence_id if item.parent else None,
+            "parentId": parent_id,
             "title": item.confluence_name,
             "body": {
                 "storage": {"value": item.confluence_body, "representation": "storage"}

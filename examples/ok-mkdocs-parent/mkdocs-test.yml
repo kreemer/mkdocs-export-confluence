@@ -1,0 +1,4 @@
+site_name: ok-mkdocs-config
+plugins:
+  - mkdocs-export-confluence:
+      parent_page: "Parent Page"
