@@ -282,7 +282,7 @@ class MkdocsExportConfluence(BasePlugin[MkdocsExportConfluenceConfig]):
                     self.logger.debug(f"Found page for link: {item.confluence_name}")
 
                     link[0].confluence_body = re.sub(
-                        r'<a href="' + link[1].replacement + '">(.*)</a>',
+                        r'<a href="' + link[1].replacement + '">(.*?)</a>',
                         r'<ac:link><ri:page ri:content-title="'
                         + item.confluence_name
                         + '" /><ac:link-body>\\1</ac:link-body></ac:link>',
