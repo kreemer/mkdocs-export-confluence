@@ -36,7 +36,6 @@ class MkdocsExportConfluence(BasePlugin[MkdocsExportConfluenceConfig]):
         self.session_file = requests.Session()
         self.logger = logging.getLogger("mkdocs.plugins.{__name__}")
         self.items = []
-        self.config = {}
         self.enabled = True
         self.confluence_renderer = MyConfluenceRenderer(
             use_xhtml=True, enable_relative_links=True
@@ -45,15 +44,18 @@ class MkdocsExportConfluence(BasePlugin[MkdocsExportConfluenceConfig]):
         self.relative_links = []
         self.attachements: list[tuple[Item, any]] = []
 
-    def on_config(self, config: mkdocs.config.Config):
+    def on_config(self, config):
         self.logger.debug("on_config called")
-        self.enabled = config.get("enabled") != False and os.getenv("ENABLED") != "0"
+
+        self.enabled = (
+            self.config.get("enabled") != False and os.getenv("ENABLED") != "0"
+        )
 
         if not self.enabled:
             self.logger.info("Plugin is disabled")
             return
 
-        self.__process_config(config)
+        self.__process_config(self.config)
 
         self.session.headers.update(
             {"Content-Type": "application/json", "Accept": "application/json"}

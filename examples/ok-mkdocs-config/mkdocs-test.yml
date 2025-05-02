@@ -1,3 +1,4 @@
 site_name: ok-mkdocs-config
 plugins:
-- mkdocs-export-confluence
+- mkdocs-export-confluence:
+    confluence_host: https://example.atlassian.net
