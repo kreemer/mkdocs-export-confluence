@@ -8,7 +8,6 @@ from dataclasses import dataclass
 from mkdocs.config import config_options
 import mkdocs
 import logging
-from md2cf.confluence_renderer import ConfluenceRenderer, ConfluenceTag
 import mistune
 import mimetypes
 
@@ -18,6 +17,14 @@ import mkdocs.structure.pages
 import requests
 import os
 import hashlib
+
+import uuid
+import re
+from pathlib import Path
+from typing import List, NamedTuple, Optional, Any
+from urllib.parse import unquote, urlparse
+
+import mistune
 
 
 class MkdocsExportConfluenceConfig(mkdocs.config.base.Config):
@@ -37,10 +44,10 @@ class MkdocsExportConfluence(BasePlugin[MkdocsExportConfluenceConfig]):
         self.logger = logging.getLogger("mkdocs.plugins.{__name__}")
         self.items = []
         self.enabled = True
-        self.confluence_renderer = MyConfluenceRenderer(
-            use_xhtml=True, enable_relative_links=True
+        self.confluence_renderer = ConfluenceRenderer(enable_relative_links=True)
+        self.confluence_mistune = mistune.Markdown(
+            renderer=self.confluence_renderer, plugins=[admonition]
         )
-        self.confluence_mistune = mistune.Markdown(renderer=self.confluence_renderer)
         self.relative_links = []
         self.attachements: list[tuple[Item, any]] = []
 
@@ -393,27 +400,262 @@ class Item:
     confluence_body: str = ""
 
 
-class MyConfluenceRenderer(ConfluenceRenderer):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+class RelativeLink(NamedTuple):
+    path: str
+    fragment: str
+    replacement: str
+    original: str
+    escaped_original: str
+
+
+class ConfluenceTag(object):
+    def __init__(self, name, text="", attrib=None, namespace="ac", cdata=False):
+        self.name = name
+        self.text = text
+        self.namespace = namespace
+        if attrib is None:
+            attrib = {}
+        self.attrib = attrib
+        self.children = []
+        self.cdata = cdata
+
+    def render(self):
+        namespaced_name = self.add_namespace(self.name, namespace=self.namespace)
+        namespaced_attribs = {
+            self.add_namespace(
+                attribute_name, namespace=self.namespace
+            ): attribute_value
+            for attribute_name, attribute_value in self.attrib.items()
+        }
+
+        content = "<{}{}>{}{}</{}>".format(
+            namespaced_name,
+            (
+                " {}".format(
+                    " ".join(
+                        [
+                            '{}="{}"'.format(name, value)
+                            for name, value in sorted(namespaced_attribs.items())
+                        ]
+                    )
+                )
+                if namespaced_attribs
+                else ""
+            ),
+            "".join([child.render() for child in self.children]),
+            "<![CDATA[{}]]>".format(self.text) if self.cdata else self.text,
+            namespaced_name,
+        )
+        return "{}\n".format(content)
+
+    @staticmethod
+    def add_namespace(tag, namespace):
+        return "{}:{}".format(namespace, tag)
+
+    def append(self, child):
+        self.children.append(child)
+
+
+class ConfluenceRenderer(mistune.HTMLRenderer):
+    def __init__(
+        self,
+        strip_header=False,
+        remove_text_newlines=False,
+        enable_relative_links=False,
+        **kwargs,
+    ):
+        super().__init__(**kwargs)
+        self.strip_header = strip_header
+        self.remove_text_newlines = remove_text_newlines
+        self.attachments = list()
+        self.title = None
+        self.enable_relative_links = enable_relative_links
+        self.relative_links: List[RelativeLink] = list()
+
+    def reinit(self):
         self.attachments = list()
         self.relative_links = list()
         self.title = None
 
-    def image(self, src, title, text):
-        attributes = {"alt": text}
-        if title:
-            attributes["title"] = title
+    def header(self, text, level, raw=None):
+        if self.title is None and level == 1:
+            self.title = text
+            # Don't duplicate page title as a header
+            if self.strip_header:
+                return ""
+
+        return super(ConfluenceRenderer, self).header(text, level, raw=raw)
+
+    def structured_macro(self, name, text=""):
+        return ConfluenceTag("structured-macro", attrib={"name": name}, text=text)
+
+    def parameter(self, name, value):
+        parameter_tag = ConfluenceTag("parameter", attrib={"name": name})
+        parameter_tag.text = value
+        return parameter_tag
+
+    def plain_text_body(self, text):
+        body_tag = ConfluenceTag("plain-text-body", cdata=True)
+        body_tag.text = text
+        return body_tag
+
+    def rich_text_body(self, text):
+        body_tag = ConfluenceTag("rich-text-body", cdata=False)
+        body_tag.text = text
+        return body_tag
+
+    def link(self, text, url, title=None):
+        parsed_link = urlparse(url)
+        if (
+            self.enable_relative_links
+            and (not parsed_link.scheme and not parsed_link.netloc)
+            and parsed_link.path
+        ):
+            # relative link
+            replacement_link = f"md2cf-internal-link-{uuid.uuid4()}"
+            self.relative_links.append(
+                RelativeLink(
+                    # make sure to unquote the url as relative paths
+                    # might have escape sequences
+                    path=unquote(parsed_link.path),
+                    replacement=replacement_link,
+                    fragment=parsed_link.fragment,
+                    original=url,
+                    escaped_original=mistune.escape_link(url),
+                )
+            )
+            url = replacement_link
+        return super(ConfluenceRenderer, self).link(text, url, title)
+
+    def text(self, text):
+        if self.remove_text_newlines:
+            text = text.replace("\n", " ")
+
+        return super().text(text)
+
+    def block_code(self, code, info=None):
+        root_element = self.structured_macro("code")
+        if info is not None:
+            lang_parameter = self.parameter(name="language", value=info)
+            root_element.append(lang_parameter)
+        root_element.append(self.parameter(name="linenumbers", value="true"))
+        root_element.append(self.plain_text_body(code))
+        return root_element.render()
+
+    def image(self, alt, url, title=None, width=None, height=None):
+        attributes = {
+            "alt": alt,
+            "title": title if title is not None else alt,
+        }
+        if width:
+            attributes["width"] = width
+        if height:
+            attributes["height"] = height
 
         root_element = ConfluenceTag(name="image", attrib=attributes)
-        parsed_source = urlparse(src)
+        parsed_source = urlparse(url)
         if not parsed_source.netloc:
             url_tag = ConfluenceTag(
-                "attachment", attrib={"filename": src}, namespace="ri"
+                "attachment", attrib={"filename": url}, namespace="ri"
             )
-            self.attachments.append(src)
+            self.attachments.append(url)
         else:
-            url_tag = ConfluenceTag("url", attrib={"value": src}, namespace="ri")
+            url_tag = ConfluenceTag("url", attrib={"value": url}, namespace="ri")
         root_element.append(url_tag)
 
         return root_element.render()
+
+    def strikethrough(self, text):
+        return f"""<span style="text-decoration: line-through;">{text}</span>"""
+
+    def task_list_item(self, text, checked=False, **attrs):
+        return f"""
+               <ac:task-list>
+               <ac:task>
+                   <ac:task-status>{"in" if not checked else ""}complete</ac:task-status>
+                   <ac:task-body>{text}</ac:task-body>
+               </ac:task>
+               </ac:task-list>
+               """
+
+    def block_spoiler(self, text):
+        lines = text.splitlines(keepends=True)
+        firstline = re.sub("<.*?>", "", lines[0])
+
+        root_element = self.structured_macro("expand")
+        title_param = self.parameter(name="title", value=firstline)
+        root_element.append(title_param)
+
+        root_element.append(self.rich_text_body("".join(lines[1:])))
+        return root_element.render()
+
+    def mark(self, text):
+        return f"""<span style="background: yellow;">{text}</span>"""
+
+    def insert(self, text):
+        return f"""<span style="color: red;">{text}</span>"""
+
+    def admonition(self, text: str, name: str, **attrs) -> str:
+        confluence_mapping = {
+            "tip": "tip",
+            "attention": "warning",
+            "caution": "warning",
+            "danger": "warning",
+            "error": "warning",
+            "hint": "tip",
+            "important": "note",
+            "note": "info",
+            "warning": "warning",
+        }
+
+        adm_class = confluence_mapping.get(name, "info")
+        root_element = self.structured_macro(name=adm_class, text=text)
+
+        if attrs["content"]:
+            content = self.rich_text_body(attrs["content"])
+            root_element.append(content)
+
+        return root_element.render()
+
+    def admonition_title(self, text: str) -> str:
+        param = self.parameter(name="title", value=text)
+        return param.render()
+
+    def admonition_content(self, text: str) -> str:
+        body = self.rich_text_body(text)
+        return body.render()
+
+    def block_image(
+        self,
+        src: str,
+        alt: Optional[str] = None,
+        width: Optional[str] = None,
+        height: Optional[str] = None,
+        **attrs: Any,
+    ) -> str:
+        return self.image(alt, src, alt, width, height)
+
+
+def admonition(md: mistune.Markdown):
+    md.block.register(
+        "admonition",
+        r"^^!!!\s+(?P<name>\w+)\s*\n(?P<text>(?:\s{4}.*\n?)+)",
+        parse_admonition,
+        before="code",
+    )
+
+
+def parse_admonition(
+    block: mistune.BlockParser, m: re.Match[str], state: mistune.BlockState
+) -> str:
+    name = m.group("name")
+    text = m.group("text")
+
+    text = re.sub(r"^\s{4}", "", text, flags=re.MULTILINE)
+
+    text = mistune.escape(text)
+
+    state.append_token(
+        {"type": "admonition", "attrs": {"name": name, "text": "", "content": text}}
+    )
+    return m.end() + 1

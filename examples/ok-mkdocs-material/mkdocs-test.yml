@@ -1,0 +1,10 @@
+site_name: ok-mkdocs-material
+theme:
+  name: material
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+plugins:
+  - search
+  - mkdocs-export-confluence

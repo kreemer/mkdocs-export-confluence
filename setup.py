@@ -10,7 +10,7 @@ setup(
     author_email="kevin@familie-studer.ch",
     license="MIT",
     python_requires=">=3.11",
-    install_requires=["mkdocs>=1.1", "jinja2", "mistune", "md2cf", "requests"],
+    install_requires=["mkdocs>=1.1", "jinja2", "mistune>=3.0", "requests"],
     packages=find_packages(),
     entry_points={
         "mkdocs.plugins": [

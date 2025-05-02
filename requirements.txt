@@ -1,4 +1,4 @@
 mkdocs
 black
 pre-commit
-md2cf
+mkdocs-material
