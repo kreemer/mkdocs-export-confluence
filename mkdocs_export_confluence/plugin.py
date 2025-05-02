@@ -527,7 +527,7 @@ class ConfluenceRenderer(mistune.HTMLRenderer):
                     replacement=replacement_link,
                     fragment=parsed_link.fragment,
                     original=url,
-                    escaped_original=mistune.escape_link(url),
+                    escaped_original=mistune.escape_url(url),
                 )
             )
             url = replacement_link
