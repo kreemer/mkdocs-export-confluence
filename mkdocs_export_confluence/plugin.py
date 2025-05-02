@@ -252,25 +252,33 @@ class MkdocsExportConfluence(BasePlugin[MkdocsExportConfluenceConfig]):
         self.logger.debug("Processing relative links")
         self.logger.debug(f"Found {len(self.relative_links)} relative links")
         for link in self.relative_links:
-            parsed_link = link[1].path
-            if not parsed_link.startswith("./"):
-                parsed_link = "./" + parsed_link
+            page: mkdocs.structure.pages.Page = link[0].structure
+            parsed_link = os.path.normpath(
+                os.path.join(os.path.dirname(page.file.src_path), link[1].path)
+            )
 
+            self.logger.debug(f"Parsed link: {page.title} -> {parsed_link}")
+
+            found = False
             for item in self.items:
-                if item.structure.is_page:
-                    parsed_url = "./" + item.structure.url[:-1] + ".md"
-                    if parsed_url == parsed_link:
-                        self.logger.debug(
-                            f"Found page for link: {item.confluence_name}"
-                        )
+                if (
+                    not found
+                    and item.structure.is_page
+                    and item.structure.file.src_path == parsed_link
+                ):
+                    found = True
+                    self.logger.debug(f"Checking page: {item.structure.title}")
+                    self.logger.debug(f"Page URL: {item.structure.file.src_path}")
 
-                        link[0].confluence_body = re.sub(
-                            r'<a href="' + link[1].replacement + '">(.*)</a>',
-                            r'<ac:link><ri:page ri:content-title="'
-                            + item.confluence_name
-                            + '" /><ac:link-body>\\1</ac:link-body></ac:link>',
-                            link[0].confluence_body,
-                        )
+                    self.logger.debug(f"Found page for link: {item.confluence_name}")
+
+                    link[0].confluence_body = re.sub(
+                        r'<a href="' + link[1].replacement + '">(.*)</a>',
+                        r'<ac:link><ri:page ri:content-title="'
+                        + item.confluence_name
+                        + '" /><ac:link-body>\\1</ac:link-body></ac:link>',
+                        link[0].confluence_body,
+                    )
 
     def __get_confluence_space_id(self, name):
         url = self.config["confluence_host"] + "api/v2/spaces?keys=" + name + ""
@@ -350,6 +358,11 @@ class MkdocsExportConfluence(BasePlugin[MkdocsExportConfluenceConfig]):
 
     def __update_confluence_page(self, item):
         url = self.config["confluence_host"] + "api/v2/pages/" + item.confluence_id
+
+        self.logger.debug(
+            f"Updating page {item.confluence_name} with ID {item.confluence_id}"
+        )
+        self.logger.debug(f"Body: {item.confluence_body}")
 
         data = {
             "id": item.confluence_id,
