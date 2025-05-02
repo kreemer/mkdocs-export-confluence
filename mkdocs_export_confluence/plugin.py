@@ -28,11 +28,12 @@ import mistune
 
 
 class MkdocsExportConfluenceConfig(mkdocs.config.base.Config):
-    confluence_host = config_options.Optional(config_options.Type(str))
-    confluence_space = config_options.Optional(config_options.Type(str))
-    confluence_parent_page = config_options.Optional(config_options.Type(str))
-    confluence_username = config_options.Optional(config_options.Type(str))
-    confluence_password = config_options.Optional(config_options.Type(str))
+    host = config_options.Optional(config_options.Type(str))
+    space = config_options.Optional(config_options.Type(str))
+    parent_page = config_options.Optional(config_options.Type(str))
+    username = config_options.Optional(config_options.Type(str))
+    password = config_options.Optional(config_options.Type(str))
+
     enabled = config_options.Type(bool, default=True)
 
 
@@ -68,66 +69,50 @@ class MkdocsExportConfluence(BasePlugin[MkdocsExportConfluenceConfig]):
             {"Content-Type": "application/json", "Accept": "application/json"}
         )
         self.session.auth = (
-            self.config["confluence_username"],
-            self.config["confluence_password"],
+            self.config["username"],
+            self.config["password"],
         )
 
         self.session_file.headers.update({"X-Atlassian-Token": "nocheck"})
         self.session_file.auth = (
-            self.config["confluence_username"],
-            self.config["confluence_password"],
+            self.config["username"],
+            self.config["password"],
         )
 
     def __process_config(self, config: mkdocs.config.Config):
-        if (
-            config.get("confluence_host") is None
-            and os.getenv("CONFLUENCE_HOST") is None
-        ):
+        if config.get("host") is None and os.getenv("CONFLUENCE_HOST") is None:
             self.logger.info("Confluence host is required, disable plugin")
             self.enabled = False
             return
         else:
-            self.config["confluence_host"] = config.get("confluence_host") or os.getenv(
-                "CONFLUENCE_HOST"
-            )
+            self.config["host"] = config.get("host") or os.getenv("CONFLUENCE_HOST")
 
-        if (
-            config.get("confluence_space") is None
-            and os.getenv("CONFLUENCE_SPACE") is None
-        ):
+        if config.get("space") is None and os.getenv("CONFLUENCE_SPACE") is None:
             self.logger.info("Confluence space is required, disable plugin")
             self.enabled = False
             return
         else:
-            self.config["confluence_space"] = config.get(
-                "confluence_space"
-            ) or os.getenv("CONFLUENCE_SPACE")
+            self.config["space"] = config.get("space") or os.getenv("CONFLUENCE_SPACE")
 
-        if (
-            config.get("confluence_username") is None
-            and os.getenv("CONFLUENCE_USERNAME") is None
-        ):
+        if config.get("username") is None and os.getenv("CONFLUENCE_USERNAME") is None:
             self.logger.info("Confluence username is required, disable plugin")
             self.enabled = False
             return
         else:
-            self.config["confluence_username"] = config.get(
-                "confluence_username"
-            ) or os.getenv("CONFLUENCE_USERNAME")
+            self.config["username"] = config.get("username") or os.getenv(
+                "CONFLUENCE_USERNAME"
+            )
 
-        if (
-            config.get("confluence_password") is None
-            and os.getenv("CONFLUENCE_PASSWORD") is None
-        ):
+        if config.get("password") is None and os.getenv("CONFLUENCE_PASSWORD") is None:
             self.logger.info("Confluence password is required, disable plugin")
             self.enabled = False
             return
         else:
-            self.config["confluence_password"] = config.get(
-                "confluence_password"
-            ) or os.getenv("CONFLUENCE_PASSWORD")
+            self.config["password"] = config.get("password") or os.getenv(
+                "CONFLUENCE_PASSWORD"
+            )
 
-        self.config["confluence_parent_page"] = config.get("confluence_parent_page")
+        self.config["parent_page"] = config.get("parent_page")
 
     def on_nav(self, nav: mkdocs.structure.nav.Navigation, config, files):
         self.logger.debug("on_nav called")
@@ -200,8 +185,8 @@ class MkdocsExportConfluence(BasePlugin[MkdocsExportConfluenceConfig]):
             self.logger.debug("Plugin is disabled, skipping on_post_build")
             return
 
-        space_id = self.__get_confluence_space_id(self.config["confluence_space"])
-        self.config["confluence_space_id"] = space_id
+        space_id = self.__get_confluence_space_id(self.config["space"])
+        self.config["space_id"] = space_id
 
         self.logger.info(f"Confluence space ID: {space_id}")
         self.__process_confluence_names()
@@ -224,7 +209,7 @@ class MkdocsExportConfluence(BasePlugin[MkdocsExportConfluenceConfig]):
                 continue
 
             url = (
-                self.config["confluence_host"]
+                self.config["host"]
                 + "rest/api/content/"
                 + item.confluence_id
                 + "/child/attachment"
@@ -290,7 +275,7 @@ class MkdocsExportConfluence(BasePlugin[MkdocsExportConfluenceConfig]):
                     )
 
     def __get_confluence_space_id(self, name):
-        url = self.config["confluence_host"] + "api/v2/spaces?keys=" + name + ""
+        url = self.config["host"] + "api/v2/spaces?keys=" + name + ""
         self.logger.debug(f"Sending request to url: {url}")
         response = self.session.get(url)
 
@@ -321,11 +306,11 @@ class MkdocsExportConfluence(BasePlugin[MkdocsExportConfluenceConfig]):
         self.logger.debug(f"Finding page ID for {page_name}")
 
         url = (
-            self.config["confluence_host"]
+            self.config["host"]
             + "api/v2/pages?title="
             + page_name
             + "&space-id="
-            + self.config["confluence_space_id"]
+            + self.config["space_id"]
             + ""
         )
         self.logger.debug(f"Sending request to url: {url}")
@@ -347,10 +332,10 @@ class MkdocsExportConfluence(BasePlugin[MkdocsExportConfluenceConfig]):
                 self.__update_confluence_page(item)
 
     def __create_confluence_page(self, item):
-        url = self.config["confluence_host"] + "api/v2/pages"
+        url = self.config["host"] + "api/v2/pages"
 
         data = {
-            "spaceId": self.config["confluence_space_id"],
+            "spaceId": self.config["space_id"],
             "status": "current",
             "title": item.confluence_name,
             "parentId": item.parent.confluence_id if item.parent else None,
@@ -366,7 +351,7 @@ class MkdocsExportConfluence(BasePlugin[MkdocsExportConfluenceConfig]):
             raise PluginError(f"Failed to create item: {response.text}")
 
     def __update_confluence_page(self, item):
-        url = self.config["confluence_host"] + "api/v2/pages/" + item.confluence_id
+        url = self.config["host"] + "api/v2/pages/" + item.confluence_id
 
         self.logger.debug(
             f"Updating page {item.confluence_name} with ID {item.confluence_id}"
