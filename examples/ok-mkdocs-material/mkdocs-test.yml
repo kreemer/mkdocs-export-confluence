@@ -7,4 +7,8 @@ markdown_extensions:
   - pymdownx.superfences
 plugins:
   - search
-  - mkdocs-export-confluence
+  - mkdocs-export-confluence:
+      host: !ENV CONFLUENCE_HOST
+      space: !ENV CONFLUENCE_SPACE
+      username: !ENV CONFLUENCE_USERNAME
+      password: !ENV CONFLUENCE_PASSWORD

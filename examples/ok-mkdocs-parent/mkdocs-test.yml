@@ -1,4 +1,8 @@
 site_name: ok-mkdocs-config
 plugins:
   - mkdocs-export-confluence:
+      host: !ENV CONFLUENCE_HOST
+      space: !ENV CONFLUENCE_SPACE
+      username: !ENV CONFLUENCE_USERNAME
+      password: !ENV CONFLUENCE_PASSWORD
       parent_page: "Parent Page"

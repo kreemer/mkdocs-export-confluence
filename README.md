@@ -29,29 +29,28 @@ Use following config and adjust it according to your needs:
 
 ```yaml
   - mkdocs-export-confluence:
-        host: https://<YOUR_CONFLUENCE_DOMAIN>/wiki
+        host: https://<YOUR_CONFLUENCE_DOMAIN>/wiki/
         space: <YOUR_SPACE>
         parent_page: <YOUR_ROOT_PARENT_PAGE>
         username: <YOUR_USERNAME_TO_CONFLUENCE>
         password: <YOUR_PASSWORD_TO_CONFLUENCE>
         enabled: true
+        dry_run: false
 ```
 
 
 ## Parameters:
 
-You can also enter the variables as environment variables:
-
-| Config | Env |
+| Config | Description |
 | --- | --- |
-| host | CONFLUENCE_HOST |
-| space | CONFLUENCE_SPACE |
-| parent_page | CONFLUENCE_PARENT_PAGE |
-| username | CONFLUENCE_USERNAME |
-| password | CONFLUENCE_PASSWORD |
-| enabled | ENABLED |
+| host | | THe host of the confluence page, should end with `/wiki/` |
+| space | | The space key where the files should be saved |
+| parent_page | | (Optional) if all pages should be nested under a common parent page |
+| username | | The username of the user |
+| password | | The password or api key of the user |
+| enabled | True | If this plugin should be processed |
+| dry_run | False | If the documents should actually be uploaded |
 
-You can enter instead of the password an api key.
 
 ### Requirements
 - mimetypes

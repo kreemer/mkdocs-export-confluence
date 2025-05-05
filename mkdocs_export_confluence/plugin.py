@@ -28,13 +28,13 @@ import mistune
 
 
 class MkdocsExportConfluenceConfig(mkdocs.config.base.Config):
-    host = config_options.Optional(config_options.Type(str))
-    space = config_options.Optional(config_options.Type(str))
-    parent_page = config_options.Optional(config_options.Type(str))
-    username = config_options.Optional(config_options.Type(str))
-    password = config_options.Optional(config_options.Type(str))
-
+    host = config_options.Type(str)
+    space = config_options.Type(str)
+    username = config_options.Type(str)
+    password = config_options.Type(str)
     enabled = config_options.Type(bool, default=True)
+    dry_run = config_options.Type(bool, default=False)
+    parent_page = config_options.Optional(config_options.Type(str))
 
 
 class MkdocsExportConfluence(BasePlugin[MkdocsExportConfluenceConfig]):
@@ -55,15 +55,9 @@ class MkdocsExportConfluence(BasePlugin[MkdocsExportConfluenceConfig]):
     def on_config(self, config):
         self.logger.debug("on_config called")
 
-        self.enabled = (
-            self.config.get("enabled") != False and os.getenv("ENABLED") != "0"
-        )
-
         if not self.enabled:
             self.logger.info("Plugin is disabled")
             return
-
-        self.__process_config(self.config)
 
         self.session.headers.update(
             {"Content-Type": "application/json", "Accept": "application/json"}
@@ -79,45 +73,9 @@ class MkdocsExportConfluence(BasePlugin[MkdocsExportConfluenceConfig]):
             self.config["password"],
         )
 
-    def __process_config(self, config: mkdocs.config.Config):
-        if config.get("host") is None and os.getenv("CONFLUENCE_HOST") is None:
-            self.logger.info("Confluence host is required, disable plugin")
-            self.enabled = False
-            return
-        else:
-            self.config["host"] = config.get("host") or os.getenv("CONFLUENCE_HOST")
-
-        if config.get("space") is None and os.getenv("CONFLUENCE_SPACE") is None:
-            self.logger.info("Confluence space is required, disable plugin")
-            self.enabled = False
-            return
-        else:
-            self.config["space"] = config.get("space") or os.getenv("CONFLUENCE_SPACE")
-
-        if config.get("username") is None and os.getenv("CONFLUENCE_USERNAME") is None:
-            self.logger.info("Confluence username is required, disable plugin")
-            self.enabled = False
-            return
-        else:
-            self.config["username"] = config.get("username") or os.getenv(
-                "CONFLUENCE_USERNAME"
-            )
-
-        if config.get("password") is None and os.getenv("CONFLUENCE_PASSWORD") is None:
-            self.logger.info("Confluence password is required, disable plugin")
-            self.enabled = False
-            return
-        else:
-            self.config["password"] = config.get("password") or os.getenv(
-                "CONFLUENCE_PASSWORD"
-            )
-
-        self.config["parent_page"] = config.get("parent_page")
-
     def on_nav(self, nav: mkdocs.structure.nav.Navigation, config, files):
         self.logger.debug("on_nav called")
         if not self.enabled:
-            self.logger.debug("Plugin is disabled, skipping on_nav")
             return
 
         self.items = self.__process_navigation(nav)
@@ -234,10 +192,13 @@ class MkdocsExportConfluence(BasePlugin[MkdocsExportConfluenceConfig]):
             if content_type is None:
                 content_type = "multipart/form-data"
 
+            if self.config["dry_run"]:
+                self.logger.info(
+                    f"Dry run: not uploading attachment {attachement_name} to {url}"
+                )
+                continue
+
             self.logger.debug(f"Uploading attachment {attachement_name} to {url}")
-            self.logger.debug(f"Attachment content type: {content_type}")
-            self.logger.debug(f"Attachment path: {attachement_path}")
-            self.logger.debug(f"Attachment name: {attachement_name}")
 
             response = self.session_file.request(
                 "PUT",
@@ -276,11 +237,6 @@ class MkdocsExportConfluence(BasePlugin[MkdocsExportConfluenceConfig]):
                     and item.structure.file.src_path == parsed_link
                 ):
                     found = True
-                    self.logger.debug(f"Checking page: {item.structure.title}")
-                    self.logger.debug(f"Page URL: {item.structure.file.src_path}")
-
-                    self.logger.debug(f"Found page for link: {item.confluence_name}")
-
                     link[0].confluence_body = re.sub(
                         r'<a href="' + link[1].replacement + '">(.*?)</a>',
                         r'<ac:link><ri:page ri:content-title="'
@@ -366,6 +322,12 @@ class MkdocsExportConfluence(BasePlugin[MkdocsExportConfluenceConfig]):
             },
         }
 
+        if self.config["dry_run"]:
+            self.logger.info(
+                f"Dry run: not creating page {item.confluence_name} to {url}"
+            )
+            return
+
         response = self.session.post(url, json=data)
         if response.status_code == 200:
             item.confluence_id = response.json()["id"]
@@ -389,6 +351,12 @@ class MkdocsExportConfluence(BasePlugin[MkdocsExportConfluenceConfig]):
             },
             "version": {"number": item.confluence_version + 1},
         }
+
+        if self.config["dry_run"]:
+            self.logger.info(
+                f"Dry run: not updating page {item.confluence_name} to {url}"
+            )
+            return
 
         response = self.session.put(url, json=data)
         if response.status_code != 200:
