@@ -28,13 +28,13 @@ import mistune
 
 
 class MkdocsExportConfluenceConfig(mkdocs.config.base.Config):
-    host = config_options.Type(str)
-    space = config_options.Type(str)
-    username = config_options.Type(str)
-    password = config_options.Type(str)
+    host = config_options.Optional(config_options.Type(str))
+    space = config_options.Optional(config_options.Type(str))
+    username = config_options.Optional(config_options.Type(str))
+    password = config_options.Optional(config_options.Type(str))
+    parent_page = config_options.Optional(config_options.Type(str))
     enabled = config_options.Type(bool, default=True)
     dry_run = config_options.Type(bool, default=False)
-    parent_page = config_options.Optional(config_options.Type(str))
 
 
 class MkdocsExportConfluence(BasePlugin[MkdocsExportConfluenceConfig]):
@@ -58,6 +58,16 @@ class MkdocsExportConfluence(BasePlugin[MkdocsExportConfluenceConfig]):
         if not self.enabled:
             self.logger.info("Plugin is disabled")
             return
+
+        if (
+            not self.config["host"]
+            or not self.config["space"]
+            or not self.config["username"]
+            or not self.config["password"]
+        ):
+            raise PluginError(
+                "Missing required configuration: host, space, username, password"
+            )
 
         self.session.headers.update(
             {"Content-Type": "application/json", "Accept": "application/json"}
