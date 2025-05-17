@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="mkdocs-export-confluence",
-    version="0.0.1",
+    version="0.1.1",
     description="MkDocs plugin for uploading markdown documentation to Confluence via Confluence REST API",
     keywords="mkdocs markdown confluence documentation rest python",
     url="https://github.com/kreemer/mkdocs-export-confluence/",
