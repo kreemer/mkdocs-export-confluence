@@ -55,7 +55,7 @@ class MkdocsExportConfluence(BasePlugin[MkdocsExportConfluenceConfig]):
     def on_config(self, config):
         self.logger.debug("on_config called")
 
-        if not self.enabled:
+        if not self.config.enabled:
             self.logger.info("Plugin is disabled")
             return
 
@@ -85,14 +85,14 @@ class MkdocsExportConfluence(BasePlugin[MkdocsExportConfluenceConfig]):
 
     def on_nav(self, nav: mkdocs.structure.nav.Navigation, config, files):
         self.logger.debug("on_nav called")
-        if not self.enabled:
+        if not self.config.enabled:
             return
 
         self.items = self.__process_navigation(nav)
 
     def on_page_markdown(self, markdown, /, *, page, config, files):
         self.logger.debug("on_page_markdown called")
-        if not self.enabled:
+        if not self.config.enabled:
             self.logger.debug("Plugin is disabled, skipping on_page_markdown")
             return
 
@@ -149,7 +149,7 @@ class MkdocsExportConfluence(BasePlugin[MkdocsExportConfluenceConfig]):
 
     def on_post_build(self, config, **kwargs):
         self.logger.debug("on_post_build called")
-        if not self.enabled:
+        if not self.config.enabled:
             self.logger.debug("Plugin is disabled, skipping on_post_build")
             return
 
